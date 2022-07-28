@@ -210,7 +210,6 @@ public class socureNode extends AbstractDecisionNode {
 			 JSONObject jsonObj  = new JSONObject(response.body());
 			 JSONObject jsonarr = jsonObj.getJSONObject("addressRisk");
 			 double score = jsonarr.getDouble("score");
-			 logger.error(String.valueOf(score));
 			 if(score < .9) {
 				 action = goTo(false);
 			 }
@@ -244,7 +243,6 @@ public class socureNode extends AbstractDecisionNode {
 			 JSONObject jsonObj  = new JSONObject(response.body());
 			 JSONObject jsonarr = jsonObj.getJSONObject("kyc");
 			 String fieldValidations = jsonarr.getString("fieldValidations");
-			 logger.error(fieldValidations);
 			 JSONObject myjson = new JSONObject(fieldValidations);
 
             JSONArray nameArray = myjson.names();
@@ -257,10 +255,7 @@ public class socureNode extends AbstractDecisionNode {
             	
             }
 			
-		} catch (JSONException e) {
-			logger.error(e.toString());
-			e.printStackTrace();
-		}
+		} catch (JSONException e) {}
 		//Determine if response should fail or success user
 		if(response.statusCode() != 200) {
 			action = goTo(false);
@@ -270,18 +265,7 @@ public class socureNode extends AbstractDecisionNode {
                 .replaceTransientState(context.transientState.copy()).build();
 
     }
-	ArrayList<String> jsonStringToArray(String jsonString) throws JSONException {
 
-	    ArrayList<String> stringArray = new ArrayList<String>();
-
-	    JSONArray jsonArray = new JSONArray(jsonString);
-
-	    for (int i = 0; i < jsonArray.length(); i++) {
-	        stringArray.add(jsonArray.getString(i));
-	    }
-
-	    return stringArray;
-	}
     private String getUsernameFromObject(TreeContext context) throws NodeProcessException {
         Optional<String> objectValue = stringAttribute(
                 getAttributeFromContext(idmIntegrationService, context, DEFAULT_IDM_MAIL_ATTRIBUTE));
