@@ -205,6 +205,7 @@ public class socureNode extends AbstractDecisionNode {
 		logger.error(response.body());
 		
 		
+		//address risk score validation
 		try {
 			 JSONObject jsonObj  = new JSONObject(response.body());
 			 JSONObject jsonarr = jsonObj.getJSONObject("addressRisk");
@@ -215,6 +216,8 @@ public class socureNode extends AbstractDecisionNode {
 			 }
 			
 		} catch (JSONException e) {}
+		
+		//phone risk score validation
 		try {
 			 JSONObject jsonObj  = new JSONObject(response.body());
 			 JSONObject jsonarr = jsonObj.getJSONObject("phoneRisk");
@@ -224,6 +227,8 @@ public class socureNode extends AbstractDecisionNode {
 			 }
 			
 		} catch (JSONException e) {}
+		
+		//email risk score validation
 		try {
 			 JSONObject jsonObj  = new JSONObject(response.body());
 			 JSONObject jsonarr = jsonObj.getJSONObject("emailRisk");
@@ -233,13 +238,24 @@ public class socureNode extends AbstractDecisionNode {
 			 }
 			
 		} catch (JSONException e) {}
+		
+		//kyc field validation
 		try {
 			 JSONObject jsonObj  = new JSONObject(response.body());
 			 JSONObject jsonarr = jsonObj.getJSONObject("kyc");
 			 String fieldValidations = jsonarr.getString("fieldValidations");
 			 logger.error(fieldValidations);
-			 ArrayList<String> arr = jsonStringToArray(fieldValidations);
-			 logger.error(arr.get(0));
+			 JSONObject myjson = new JSONObject(fieldValidations);
+
+            JSONArray nameArray = myjson.names();
+            JSONArray valArray = myjson.toJSONArray(nameArray);
+            for(int i=0;i<valArray.length();i++)
+            {
+            	if(valArray.getInt(i) < .2) {
+            		action = goTo(false);
+            	}
+            	
+            }
 			
 		} catch (JSONException e) {
 			logger.error(e.toString());
