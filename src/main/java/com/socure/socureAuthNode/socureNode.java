@@ -16,23 +16,34 @@
 
 
 package com.socure.socureAuthNode;
-
+import static org.forgerock.json.JsonValue.object;
 import static org.forgerock.http.protocol.Responses.noopExceptionFunction;
 import static org.forgerock.json.JsonValue.json;
 import static org.forgerock.util.CloseSilentlyFunction.closeSilently;
 import static org.forgerock.util.Closeables.closeSilentlyAsync;
-
+import static org.forgerock.openam.auth.nodes.helpers.IdmIntegrationHelper.getObject;
 import java.net.URISyntaxException;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
+import java.util.Optional;
 import java.util.regex.Pattern;
-
+import java.io.IOException;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.net.http.HttpRequest.BodyPublishers;
 import javax.inject.Inject;
-
+import static org.forgerock.openam.auth.nodes.helpers.IdmIntegrationHelper.getAttributeFromContext;
 import org.forgerock.http.header.GenericHeader;
 import org.forgerock.json.JsonValue;
-
+import static org.forgerock.openam.integration.idm.IdmIntegrationService.DEFAULT_IDM_IDENTITY_ATTRIBUTE;
+import static org.forgerock.openam.integration.idm.IdmIntegrationService.DEFAULT_IDM_MAIL_ATTRIBUTE;
 import org.forgerock.util.promise.Promise;
+import org.json.JSONArray;
+import org.json.JSONException;
+import org.json.JSONObject;
 import org.forgerock.http.handler.HttpClientHandler;
 import org.forgerock.http.protocol.Request;
 import org.forgerock.http.protocol.Response;
@@ -43,11 +54,12 @@ import org.forgerock.openam.auth.node.api.Node;
 import org.forgerock.openam.auth.node.api.NodeProcessException;
 import org.forgerock.openam.auth.node.api.TreeContext;
 import org.forgerock.openam.core.realms.Realm;
+import org.forgerock.openam.integration.idm.IdmIntegrationService;
 import org.forgerock.services.context.RootContext;
 import org.forgerock.util.Function;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
+import static org.forgerock.openam.auth.nodes.helpers.IdmIntegrationHelper.stringAttribute;
 
 import com.google.inject.assistedinject.Assisted;
 
@@ -63,6 +75,7 @@ public class socureNode extends AbstractDecisionNode {
     private final Pattern DN_PATTERN = Pattern.compile("^[a-zA-Z0-9]=([^,]+),");
     private static final Logger logger = LoggerFactory.getLogger(socureNode.class);
     private final Config config;
+    private final IdmIntegrationService idmIntegrationService;
     private final Realm realm;
     private final HttpClientHandler clientHandler;
 
@@ -73,28 +86,19 @@ public class socureNode extends AbstractDecisionNode {
         /**
          * The header name for zero-page login that will contain the identity's username.
          */
-        @Attribute(order = 100)
-        default String usernameHeader() {
-            return "X-OpenAM-Username";
+    	@Attribute(order = 100)
+        default String apiUrl() {
+            return "";
         }
 
         /**
          * The header name for zero-page login that will contain the identity's password.
          */
         @Attribute(order = 200)
-        default String passwordHeader() {
-            return "X-OpenAM-Password";
+        default String apiKey() {
+            return "";
         }
-
-        /**
-         * The group name (or fully-qualified unique identifier) for the group that the identity must be in.
-         */
         @Attribute(order = 300)
-        default String groupName() {
-            return "zero-page-login";
-        }
-
-        @Attribute(order = 400)
         default Module module() {
             return Module.KYC;
         }
@@ -112,85 +116,167 @@ public class socureNode extends AbstractDecisionNode {
      * @throws NodeProcessException If the configuration was not valid.
      */
     @Inject
-    public socureNode(@Assisted Config config, @Assisted Realm realm, HttpClientHandler client) {
+    public socureNode(@Assisted Config config, @Assisted Realm realm, HttpClientHandler client, IdmIntegrationService idmIntegrationService) {
         this.config = config;
         this.realm = realm;
         this.clientHandler = client;
+        this.idmIntegrationService = idmIntegrationService;
 
     }
-
-    @Override
+    
+	@Override
     public Action process(TreeContext context) throws NodeProcessException {
+    	
+		 // Get username of current user
+    	 Optional<String> userName = stringAttribute(
+                 idmIntegrationService.getAttributeFromContext(context, DEFAULT_IDM_IDENTITY_ATTRIBUTE));
+         if (userName.isEmpty()) {
+             userName = Optional.ofNullable(getUsernameFromObject(context));
+         }
+         
+         //Get identity information of current user using username
+         
+         JsonValue existingObject = getObject(idmIntegrationService, realm, context.request.locales,
+                 context.identityResource, DEFAULT_IDM_IDENTITY_ATTRIBUTE, userName)
+                 .orElseThrow(() -> new NodeProcessException("Failed to retrieve existing object"));
+       
+         logger.error(String.valueOf(existingObject));
+       //Continue adding values to match the socure docs for each module
+        String firstName = existingObject.get("givenName").asString();
+        String surName = existingObject.get("sn").asString();
+        String physicalAddress = existingObject.get("postalAddress").asString();
+        String city = existingObject.get("city").asString();
+        String state = existingObject.get("stateProvince").asString();
+        String zip = existingObject.get("postalCode").asString();
+        String country = existingObject.get("country").asString();
+        String mail = existingObject.get("mail").asString();
+        String telephoneNumber = existingObject.get("telephoneNumber").asString();
+        String dob = existingObject.get("dob").asString();
+        String nationalId = existingObject.get("nationalId").asString();
+        // Create JSON body
+        JSONObject object = new JSONObject();
+	      String json = null;
+	      try {
+	    	  JSONArray array = new JSONArray();
+	    	  array.put(config.module().isActive());
+	    	  
+	    	  //Continue adding values to match the socure docs for each module
+	    	  
+	    	  object.put("modules", array);
+			  object.put("firstName", firstName);
+		      object.put("surName", surName);
+		      object.put("physicalAddress", physicalAddress);
+			  object.put("city", city);
+		      object.put("state", state);
+		      object.put("zip", zip);
+			  object.put("country", country);
+			  object.put("email", mail);
+			  object.put("mobileNumber", telephoneNumber);
+			  object.put("dob", dob);
+			  object.put("nationalId", nationalId);
+			  
+		      
+		      json = object.toString();
 
 
-        Request request;
-        try {
-            request = new Request().setUri("https://sandbox.socure.com/api/3.0/EmailAuthScore");
-            request.setMethod("POST");
-            request.setEntity("{\"modules\": [\"kyc\"]}");
-        } catch (
-                URISyntaxException e) {
-            throw new NodeProcessException(e);
-        }
-        //kyc module
-        List<String> list = new ArrayList<>();
-        list.add(config.module().isActive());
-   //     final Form form = new Form();
-        //     form.add("modules", "[ \"kyc\"]");
-//        form.add("userConsent", userConsent);
-//        form.add("firstName", "John");
-//        form.add("surName", config.surName().toString());
-//        form.add("physicalAddress", config.physicalAddress);
-//        form.add("city", city);
-//        form.add("state", state);
-//        form.add("zip", zip);
-//        form.add("country", country);
-//        form.add("nationalId", nationalId);
-//        form.add("dob", dob());
-
-//          form.toRequestEntity(request);
-        request.addHeaders(new GenericHeader("Authorization", "SocureApiKey "), new GenericHeader("Content-Type", "application/json"));
-
-        Promise tmxResponse = clientHandler.handle(new RootContext(), request)
-                .thenAlways(closeSilentlyAsync(request)).then(closeSilently(mapToJsonValue()), noopExceptionFunction())
-                .then(storeResponse(context.sharedState));
-        try {
-            tmxResponse.getOrThrow();
-        } catch (Exception e) {
-            logger.error("Unable to get response for session: ");
-            throw new NodeProcessException(e);
-        }
-        logger.error("Response");
-        return goTo(false).build();
+		} catch (JSONException e1) {
+			e1.printStackTrace();
+		}
+	      //Make API call to Socure
+	      HttpClient client = HttpClient.newHttpClient();
+	      HttpRequest request = HttpRequest.newBuilder()
+	                .uri(URI.create(config.apiUrl()))
+	                .POST(BodyPublishers.ofString(json))
+	                .header("Authorization", "SocureApiKey " + config.apiKey())
+	                .header("Content-Type", "application/json")
+	                .build();
+	      
+	      HttpResponse<String> response = null;
+		try {
+			response = client.send(request,
+			            HttpResponse.BodyHandlers.ofString());
+		} catch (IOException e) {
+			e.printStackTrace();
+		} catch (InterruptedException e) {
+			e.printStackTrace();
+		}
+		Action.ActionBuilder action = goTo(true);
+		logger.error(String.valueOf(response.statusCode()));
+		logger.error(response.body());
+		
+		
+		try {
+			 JSONObject jsonObj  = new JSONObject(response.body());
+			 JSONObject jsonarr = jsonObj.getJSONObject("addressRisk");
+			 double score = jsonarr.getDouble("score");
+			 logger.error(String.valueOf(score));
+			 if(score < .9) {
+				 action = goTo(false);
+			 }
+			
+		} catch (JSONException e) {}
+		try {
+			 JSONObject jsonObj  = new JSONObject(response.body());
+			 JSONObject jsonarr = jsonObj.getJSONObject("phoneRisk");
+			 double score = jsonarr.getDouble("score");
+			 if(score < .9) {
+				 action = goTo(false);
+			 }
+			
+		} catch (JSONException e) {}
+		try {
+			 JSONObject jsonObj  = new JSONObject(response.body());
+			 JSONObject jsonarr = jsonObj.getJSONObject("emailRisk");
+			 double score = jsonarr.getDouble("score");
+			 if(score < .9) {
+				 action = goTo(false);
+			 }
+			
+		} catch (JSONException e) {}
+		try {
+			 JSONObject jsonObj  = new JSONObject(response.body());
+			 JSONObject jsonarr = jsonObj.getJSONObject("kyc");
+			 String fieldValidations = jsonarr.getString("fieldValidations");
+			 logger.error(fieldValidations);
+			 ArrayList<String> arr = jsonStringToArray(fieldValidations);
+			 logger.error(arr.get(0));
+			
+		} catch (JSONException e) {
+			logger.error(e.toString());
+			e.printStackTrace();
+		}
+		//Determine if response should fail or success user
+		if(response.statusCode() != 200) {
+			action = goTo(false);
+		}
+		return action
+                .replaceSharedState(context.sharedState.copy())
+                .replaceTransientState(context.transientState.copy()).build();
 
     }
+	ArrayList<String> jsonStringToArray(String jsonString) throws JSONException {
 
-    private Function<JsonValue, Void, NodeProcessException> storeResponse(final JsonValue sharedState) {
-        return response -> {
-            // store the token response in the jwt token
-            //sharedState.put(SESSION_QUERY_RESPONSE, response);
-            //sharedState.put(REQUEST_ID, response.get(REQUEST_ID));
-            return null;
-        };
+	    ArrayList<String> stringArray = new ArrayList<String>();
+
+	    JSONArray jsonArray = new JSONArray(jsonString);
+
+	    for (int i = 0; i < jsonArray.length(); i++) {
+	        stringArray.add(jsonArray.getString(i));
+	    }
+
+	    return stringArray;
+	}
+    private String getUsernameFromObject(TreeContext context) throws NodeProcessException {
+        Optional<String> objectValue = stringAttribute(
+                getAttributeFromContext(idmIntegrationService, context, DEFAULT_IDM_MAIL_ATTRIBUTE));
+        logger.debug("Retrieving {} of {} {}", DEFAULT_IDM_IDENTITY_ATTRIBUTE, context.identityResource, objectValue);
+        JsonValue existingObject = getObject(idmIntegrationService, realm, context.request.locales,
+                context.identityResource, DEFAULT_IDM_MAIL_ATTRIBUTE, objectValue, DEFAULT_IDM_IDENTITY_ATTRIBUTE)
+                .orElseThrow(() -> new NodeProcessException("Failed to retrieve existing object"));
+
+        logger.error(existingObject.asString());
+        return existingObject.get(DEFAULT_IDM_IDENTITY_ATTRIBUTE).asString();
     }
-
-    public static Function<Response, JsonValue, NodeProcessException> mapToJsonValue() {
-        return response -> {
-            try {
-                logger.error(String.valueOf(response.getStatus()));
-                logger.error(String.valueOf(response.getCause()));
-                logger.error("Status");
-
-                if (!response.getStatus().isSuccessful()) {
-                    throw response.getCause();
-                }
-                return json(response.getEntity().getJson());
-            } catch (Exception e) {
-                throw new NodeProcessException("Unable to process request. " + response.getEntity().toString(), e);
-            }
-        };
-    }
-
 
     public enum Module {
         /**
@@ -200,11 +286,11 @@ public class socureNode extends AbstractDecisionNode {
         /**
          * The unlock status.
          **/
-        EmailRiskScore("emailriskscore"),
+        EmailRiskScore("emailrisk"),
 
-        AddressRiskScore("addressriskscore"),
+        AddressRiskScore("addressrisk"),
 
-        PhoneRiskScore("phoneriskscore"),
+        PhoneRiskScore("phonerisk"),
 
         SigmaIdentityFraud("sigmaidentityfraud"),
 
