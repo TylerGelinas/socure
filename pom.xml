@@ -23,7 +23,7 @@
     <artifactId>socureAuthNode</artifactId>
 
     <groupId>com.socure</groupId>
-    <version>1.0.2-SNAPSHOT</version>
+    <version>1.0.6-SNAPSHOT</version>
     <name>Template for an Auth Tree Node maven project</name>
     <description>An Authentication Tree Node for ForgeRock's Identity Platform</description>
 
@@ -62,6 +62,10 @@
             <artifactId>auth-node-api</artifactId>
             <scope>provided</scope>
         </dependency>
+		<dependency>
+			<groupId>org.forgerock.am</groupId>
+			<artifactId>auth-nodes</artifactId>
+		</dependency>
         <dependency>
             <groupId>org.forgerock.am</groupId>
             <artifactId>openam-guice-core</artifactId>
@@ -72,7 +76,12 @@
             <artifactId>openam-core</artifactId>
             <scope>provided</scope>
         </dependency>
+        <dependency>
+			<groupId>org.forgerock.am</groupId>
+			<artifactId>openam-idm-integration-service</artifactId>
+		</dependency>
     </dependencies>
+    
 
     <repositories>
         <repository>
