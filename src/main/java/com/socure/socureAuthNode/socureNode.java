@@ -102,14 +102,7 @@ public class socureNode extends AbstractDecisionNode {
         default Module module() {
             return Module.KYC;
         }
-        @Attribute(order = 400)
-        default double riskScore() {
-            return .9;
-        }
-        @Attribute(order = 500)
-        default double validationScore() {
-            return .2;
-        }
+       
 
 
     }
@@ -214,7 +207,7 @@ public class socureNode extends AbstractDecisionNode {
 			 JSONObject jsonObj  = new JSONObject(response.body());
 			 JSONObject jsonarr = jsonObj.getJSONObject("addressRisk");
 			 double score = jsonarr.getDouble("score");
-			 if(score < config.riskScore()) {
+			 if(score < .9) {
 				 action = goTo(false);
 			 }
 			
@@ -225,7 +218,7 @@ public class socureNode extends AbstractDecisionNode {
 			 JSONObject jsonObj  = new JSONObject(response.body());
 			 JSONObject jsonarr = jsonObj.getJSONObject("phoneRisk");
 			 double score = jsonarr.getDouble("score");
-			 if(score < config.riskScore()) {
+			 if(score < .9) {
 				 action = goTo(false);
 			 }
 			
@@ -236,7 +229,7 @@ public class socureNode extends AbstractDecisionNode {
 			 JSONObject jsonObj  = new JSONObject(response.body());
 			 JSONObject jsonarr = jsonObj.getJSONObject("emailRisk");
 			 double score = jsonarr.getDouble("score");
-			 if(score < config.riskScore()) {
+			 if(score <  .9) {
 				 action = goTo(false);
 			 }
 			
@@ -247,7 +240,7 @@ public class socureNode extends AbstractDecisionNode {
 			 JSONObject jsonObj  = new JSONObject(response.body());
 			 JSONObject jsonarr = jsonObj.getJSONObject("deviceRisk");
 			 double score = jsonarr.getDouble("score");
-			 if(score < config.riskScore()) {
+			 if(score < .9) {
 				 action = goTo(false);
 			 }
 			
@@ -264,7 +257,7 @@ public class socureNode extends AbstractDecisionNode {
             JSONArray valArray = myjson.toJSONArray(nameArray);
             for(int i=0;i<valArray.length();i++)
             {
-            	if(valArray.getInt(i) < config.validationScore()) {
+            	if(valArray.getInt(i) < .2) {
             		action = goTo(false);
             	}
             	
