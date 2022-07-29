@@ -102,6 +102,14 @@ public class socureNode extends AbstractDecisionNode {
         default Module module() {
             return Module.KYC;
         }
+        @Attribute(order = 400)
+        default double riskScore() {
+            return .9;
+        }
+        @Attribute(order = 500)
+        default double validationScore() {
+            return .2;
+        }
 
 
     }
@@ -140,7 +148,6 @@ public class socureNode extends AbstractDecisionNode {
                  context.identityResource, DEFAULT_IDM_IDENTITY_ATTRIBUTE, userName)
                  .orElseThrow(() -> new NodeProcessException("Failed to retrieve existing object"));
        
-         logger.error(String.valueOf(existingObject));
        //Continue adding values to match the socure docs for each module
         String firstName = existingObject.get("givenName").asString();
         String surName = existingObject.get("sn").asString();
@@ -201,16 +208,13 @@ public class socureNode extends AbstractDecisionNode {
 			e.printStackTrace();
 		}
 		Action.ActionBuilder action = goTo(true);
-		logger.error(String.valueOf(response.statusCode()));
-		logger.error(response.body());
-		
 		
 		//address risk score validation
 		try {
 			 JSONObject jsonObj  = new JSONObject(response.body());
 			 JSONObject jsonarr = jsonObj.getJSONObject("addressRisk");
 			 double score = jsonarr.getDouble("score");
-			 if(score < .9) {
+			 if(score < config.riskScore()) {
 				 action = goTo(false);
 			 }
 			
@@ -221,7 +225,7 @@ public class socureNode extends AbstractDecisionNode {
 			 JSONObject jsonObj  = new JSONObject(response.body());
 			 JSONObject jsonarr = jsonObj.getJSONObject("phoneRisk");
 			 double score = jsonarr.getDouble("score");
-			 if(score < .9) {
+			 if(score < config.riskScore()) {
 				 action = goTo(false);
 			 }
 			
@@ -232,7 +236,18 @@ public class socureNode extends AbstractDecisionNode {
 			 JSONObject jsonObj  = new JSONObject(response.body());
 			 JSONObject jsonarr = jsonObj.getJSONObject("emailRisk");
 			 double score = jsonarr.getDouble("score");
-			 if(score < .9) {
+			 if(score < config.riskScore()) {
+				 action = goTo(false);
+			 }
+			
+		} catch (JSONException e) {}
+		
+		//device risk score validation
+		try {
+			 JSONObject jsonObj  = new JSONObject(response.body());
+			 JSONObject jsonarr = jsonObj.getJSONObject("deviceRisk");
+			 double score = jsonarr.getDouble("score");
+			 if(score < config.riskScore()) {
 				 action = goTo(false);
 			 }
 			
@@ -249,7 +264,7 @@ public class socureNode extends AbstractDecisionNode {
             JSONArray valArray = myjson.toJSONArray(nameArray);
             for(int i=0;i<valArray.length();i++)
             {
-            	if(valArray.getInt(i) < .2) {
+            	if(valArray.getInt(i) < config.validationScore()) {
             		action = goTo(false);
             	}
             	
@@ -269,12 +284,10 @@ public class socureNode extends AbstractDecisionNode {
     private String getUsernameFromObject(TreeContext context) throws NodeProcessException {
         Optional<String> objectValue = stringAttribute(
                 getAttributeFromContext(idmIntegrationService, context, DEFAULT_IDM_MAIL_ATTRIBUTE));
-        logger.debug("Retrieving {} of {} {}", DEFAULT_IDM_IDENTITY_ATTRIBUTE, context.identityResource, objectValue);
         JsonValue existingObject = getObject(idmIntegrationService, realm, context.request.locales,
                 context.identityResource, DEFAULT_IDM_MAIL_ATTRIBUTE, objectValue, DEFAULT_IDM_IDENTITY_ATTRIBUTE)
                 .orElseThrow(() -> new NodeProcessException("Failed to retrieve existing object"));
 
-        logger.error(existingObject.asString());
         return existingObject.get(DEFAULT_IDM_IDENTITY_ATTRIBUTE).asString();
     }
 
@@ -296,7 +309,7 @@ public class socureNode extends AbstractDecisionNode {
 
         SigmaSyntheticFraud("sigmasyntheticfraud"),
 
-        SigmaDevice("sigmadevice"),
+        SigmaDevice("devicerisk"),
 
         GlobalWatchlist("globalwatchlist"),
 
