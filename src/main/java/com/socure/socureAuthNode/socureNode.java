@@ -207,7 +207,7 @@ public class socureNode extends AbstractDecisionNode {
 			 JSONObject jsonObj  = new JSONObject(response.body());
 			 JSONObject jsonarr = jsonObj.getJSONObject("addressRisk");
 			 double score = jsonarr.getDouble("score");
-			 if(score < .9) {
+			 if(score > .9) {
 				 action = goTo(false);
 			 }
 			
@@ -218,7 +218,7 @@ public class socureNode extends AbstractDecisionNode {
 			 JSONObject jsonObj  = new JSONObject(response.body());
 			 JSONObject jsonarr = jsonObj.getJSONObject("phoneRisk");
 			 double score = jsonarr.getDouble("score");
-			 if(score < .9) {
+			 if(score > .9) {
 				 action = goTo(false);
 			 }
 			
@@ -229,7 +229,7 @@ public class socureNode extends AbstractDecisionNode {
 			 JSONObject jsonObj  = new JSONObject(response.body());
 			 JSONObject jsonarr = jsonObj.getJSONObject("emailRisk");
 			 double score = jsonarr.getDouble("score");
-			 if(score <  .9) {
+			 if(score >  .9) {
 				 action = goTo(false);
 			 }
 			
@@ -240,7 +240,7 @@ public class socureNode extends AbstractDecisionNode {
 			 JSONObject jsonObj  = new JSONObject(response.body());
 			 JSONObject jsonarr = jsonObj.getJSONObject("deviceRisk");
 			 double score = jsonarr.getDouble("score");
-			 if(score < .9) {
+			 if(score > .9) {
 				 action = goTo(false);
 			 }
 			
